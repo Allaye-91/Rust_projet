@@ -89,4 +89,11 @@ impl<D: Disque> SystemeFichier<D> {
         Err("Introuvable")
     }
 
+    pub fn changer_repertoire(&mut self, nom: &str) -> Result<(), &'static str> {
+        let e = self.trouver_entree(nom)?;
+        if (e.attributes & 0x10) == 0 { return Err("Pas un dossier"); }
+        self.cluster_courant = (e.cluster_high as u32) << 16 | (e.cluster_low as u32);
+        Ok(())
+    }
+
 }
