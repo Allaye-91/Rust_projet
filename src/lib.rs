@@ -10,11 +10,9 @@ use alloc::format;
 pub mod structs;
 use structs::{BiosParameterBlock, DirEntry};
 
-
 pub trait Disque {
     fn lire_secteur(&self, idx_secteur: u64, tampon: &mut [u8]) -> Result<(), &'static str>;
 }
-
 
 pub struct SystemeFichier<D: Disque> {
     disque: D,
@@ -24,8 +22,8 @@ pub struct SystemeFichier<D: Disque> {
     cluster_courant: u32 
 }
 
-
 impl<D: Disque> SystemeFichier<D> {
+    
     pub fn initialiser(disque: D) -> Result<Self, &'static str> {
         let mut tampon = [0u8; 512];
         disque.lire_secteur(0, &mut tampon)?;
@@ -35,13 +33,11 @@ impl<D: Disque> SystemeFichier<D> {
         Ok(Self { disque, bpb, debut_fat, debut_donnees, cluster_courant: bpb.root_cluster })
     }
 
-    
     fn cluster_vers_secteur(&self, cluster: u32) -> u64 {
         let cluster_effectif = cluster.saturating_sub(2);
         self.debut_donnees + (cluster_effectif as u64 * self.bpb.sectors_per_cluster as u64)
     }
 
-    
     pub fn lister_repertoire(&self) -> Result<Vec<String>, &'static str> {
         let sect = self.cluster_vers_secteur(self.cluster_courant);
         let mut buf = [0u8; 512];
@@ -65,7 +61,6 @@ impl<D: Disque> SystemeFichier<D> {
         Ok(res)
     }
 
-    
     fn cluster_suivant(&self, cluster: u32) -> Result<u32, &'static str> {
         let off = cluster * 4;
         let sec = self.debut_fat + (off as u64 / 512);
@@ -78,4 +73,20 @@ impl<D: Disque> SystemeFichier<D> {
         Ok(val)
     }
 
-} 
+    fn trouver_entree(&self, cible: &str) -> Result<DirEntry, &'static str> {
+        let sect = self.cluster_vers_secteur(self.cluster_courant);
+        let mut buf = [0u8; 512];
+        self.disque.lire_secteur(sect, &mut buf)?;
+        for chunk in buf.chunks_exact(32) {
+            let e = unsafe { core::ptr::read_unaligned(chunk.as_ptr() as *const DirEntry) };
+            if e.name[0] == 0 { break; }
+            if e.name[0] == 0xE5 || e.attributes == 0x0F { continue; }
+            let n = String::from_utf8_lossy(&e.name).trim().to_string();
+            let x = String::from_utf8_lossy(&e.ext).trim().to_string();
+            let full = if x.is_empty() { n.clone() } else { format!("{}.{}", n, x) };
+            if full == cible { return Ok(e); }
+        }
+        Err("Introuvable")
+    }
+
+}
