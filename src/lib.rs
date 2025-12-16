@@ -1,6 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(dead_code)]
-#![allow(unused_imports)]
+#![allow(unused_imports)] 
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -27,28 +27,45 @@ pub struct SystemeFichier<D: Disque> {
 
 impl<D: Disque> SystemeFichier<D> {
     
-
+    
     pub fn initialiser(disque: D) -> Result<Self, &'static str> {
         let mut tampon = [0u8; 512];
         disque.lire_secteur(0, &mut tampon)?;
         let bpb = unsafe { BiosParameterBlock::depuis_octets(&tampon) };
-
         let debut_fat = bpb.reserved_sectors as u64;
         let debut_donnees = debut_fat + (bpb.num_fats as u64 * bpb.fat_size_32 as u64);
-        let cluster_racine = bpb.root_cluster;
+        Ok(Self { disque, bpb, debut_fat, debut_donnees, cluster_courant: bpb.root_cluster })
+    }
 
-        Ok(Self {
-            disque,
-            bpb,
-            debut_fat,
-            debut_donnees,
-            cluster_courant: cluster_racine,
-        })
-}
-// Fonction B : Helper (Celle que vous venez d'ajouter)
+    
     fn cluster_vers_secteur(&self, cluster: u32) -> u64 {
         let cluster_effectif = cluster.saturating_sub(2);
         self.debut_donnees + (cluster_effectif as u64 * self.bpb.sectors_per_cluster as u64)
     }
 
-} //
+    
+    pub fn lister_repertoire(&self) -> Result<Vec<String>, &'static str> {
+        let sect = self.cluster_vers_secteur(self.cluster_courant);
+        let mut buf = [0u8; 512];
+        self.disque.lire_secteur(sect, &mut buf)?;
+
+        let mut res = Vec::new();
+        for chunk in buf.chunks_exact(32) {
+            let e = unsafe { core::ptr::read_unaligned(chunk.as_ptr() as *const DirEntry) };
+            
+            if e.name[0] == 0 { break; }
+            if e.name[0] == 0xE5 || e.attributes == 0x0F { continue; }
+
+            let nom = String::from_utf8_lossy(&e.name).trim().to_string();
+            let ext = String::from_utf8_lossy(&e.ext).trim().to_string();
+            
+            if !nom.is_empty() {
+                let full = if ext.is_empty() { nom } else { format!("{}.{}", nom, ext) };
+                let typ = if (e.attributes & 0x10) != 0 { "<DOS>" } else { "     " };
+                res.push(format!("{} {}", typ, full));
+            }
+        }
+        Ok(res)
+    }
+
+}
