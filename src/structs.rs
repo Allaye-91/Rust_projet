@@ -18,8 +18,6 @@ impl BiosParameterBlock {
         core::ptr::read_unaligned(ptr)
     }
 }
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug)]
 pub struct DirEntry {
     pub name: [u8; 8], pub ext: [u8; 3], pub attributes: u8, pub reserved: u8,
     pub create_time_tenth: u8, pub create_time: u16, pub create_date: u16,
