@@ -94,6 +94,23 @@ impl<D: Disque> SystemeFichier<D> {
         if (e.attributes & 0x10) == 0 { return Err("Pas un dossier"); }
         self.cluster_courant = (e.cluster_high as u32) << 16 | (e.cluster_low as u32);
         Ok(())
+}
+    pub fn lire_fichier(&self, nom: &str) -> Result<String, &'static str> {
+        let e = self.trouver_entree(nom)?;
+        if (e.attributes & 0x10) != 0 { return Err("Est un dossier"); }
+        let mut res = Vec::new();
+        let mut clus = (e.cluster_high as u32) << 16 | (e.cluster_low as u32);
+        loop {
+            let sec = self.cluster_vers_secteur(clus);
+            let mut buf = [0u8; 512];
+            self.disque.lire_secteur(sec, &mut buf)?;
+            res.extend_from_slice(&buf);
+            let next = self.cluster_suivant(clus)?;
+            if next >= 0x0FFFFFF8 { break; }
+            clus = next;
+        }
+        res.truncate(e.file_size as usize);
+        Ok(String::from_utf8_lossy(&res).to_string())
     }
 
 }
