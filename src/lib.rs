@@ -18,3 +18,13 @@ pub struct SystemeFichier<D: Disque> {
     debut_donnees: u64,
     cluster_courant: u32 
 }
+impl<D: Disque> SystemeFichier<D> {
+    pub fn initialiser(disque: D) -> Result<Self, &'static str> {
+        let mut tampon = [0u8; 512];
+        disque.lire_secteur(0, &mut tampon)?;
+        let bpb = unsafe { BiosParameterBlock::depuis_octets(&tampon) };
+        let debut_fat = bpb.reserved_sectors as u64;
+        let debut_donnees = debut_fat + (bpb.num_fats as u64 * bpb.fat_size_32 as u64);
+        Ok(Self { disque, bpb, debut_fat, debut_donnees, cluster_courant: bpb.root_cluster })
+    }
+}
