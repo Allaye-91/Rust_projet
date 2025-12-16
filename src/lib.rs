@@ -28,3 +28,7 @@ impl<D: Disque> SystemeFichier<D> {
         Ok(Self { disque, bpb, debut_fat, debut_donnees, cluster_courant: bpb.root_cluster })
     }
 }
+fn cluster_vers_secteur(&self, cluster: u32) -> u64 {
+        let cluster_effectif = cluster.saturating_sub(2);
+        self.debut_donnees + (cluster_effectif as u64 * self.bpb.sectors_per_cluster as u64)
+    }
