@@ -1,6 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 #![allow(dead_code)]
-#![allow(unused_imports)] 
+#![allow(unused_imports)]
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -26,8 +26,6 @@ pub struct SystemeFichier<D: Disque> {
 
 
 impl<D: Disque> SystemeFichier<D> {
-    
-    
     pub fn initialiser(disque: D) -> Result<Self, &'static str> {
         let mut tampon = [0u8; 512];
         disque.lire_secteur(0, &mut tampon)?;
@@ -52,7 +50,6 @@ impl<D: Disque> SystemeFichier<D> {
         let mut res = Vec::new();
         for chunk in buf.chunks_exact(32) {
             let e = unsafe { core::ptr::read_unaligned(chunk.as_ptr() as *const DirEntry) };
-            
             if e.name[0] == 0 { break; }
             if e.name[0] == 0xE5 || e.attributes == 0x0F { continue; }
 
@@ -68,4 +65,17 @@ impl<D: Disque> SystemeFichier<D> {
         Ok(res)
     }
 
-}
+    
+    fn cluster_suivant(&self, cluster: u32) -> Result<u32, &'static str> {
+        let off = cluster * 4;
+        let sec = self.debut_fat + (off as u64 / 512);
+        let mut buf = [0u8; 512];
+        self.disque.lire_secteur(sec, &mut buf)?;
+        let val = unsafe {
+            let ptr = buf.as_ptr().add((off % 512) as usize) as *const u32;
+            core::ptr::read_unaligned(ptr)
+        } & 0x0FFFFFFF;
+        Ok(val)
+    }
+
+} 
